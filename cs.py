@@ -12,24 +12,27 @@ socket.setdefaulttimeout(0.05)
 
 def extractInfo(txt):
     txt=txt.replace('\377', '')
-    if txt.find('m') == 0:
-        serv_name=txt.split('\0') [1]
-        serv_map=txt.split('\0') [2]
-        serv_engine=txt.split('\0') [3]
-        serv_game=txt.split('\0') [4]
-        players = unpack('bb',txt.split('\0')[5][:2])
-        #if txt.split('\0')[9][:1] == '\0':
-        #    protected = True
-        #else:
-        #    protected = False
-        print ' Server IP appended '
-        return serv_name+" -- "+serv_map+" ("+str(players[0])+"/"+str(players[1])+" players)"
-    else:
-        return ''
+    if txt.find('Dota 2') > 0:
+        print ' DotA Server IP appended '
+        return 'dota', 'Dota 2'
+    elif txt.find('Counter-Strike') > 0:
+        if txt.find('m') == 0:
+            serv_name=txt.split('\0') [1]
+            serv_map=txt.split('\0') [2]
+            serv_engine=txt.split('\0') [3]
+            serv_game=txt.split('\0') [4]
+            players = unpack('bb',txt.split('\0')[5][:2])
+            #if txt.split('\0')[9][:1] == '\0':
+            #    protected = True
+            #else:
+            #    protected = False
+            print ' CS Server IP appended '
+            return 'cs', serv_name+" -- "+serv_map+" ("+str(players[0])+"/"+str(players[1])+" players)"
+    return '', ''
 
 class ClientThread (threading.Thread):
     def run (self):
-        global serverList
+        global serverListCS, serverListDotA
         ip = None
         while True:
             if not ipPool.empty():
@@ -60,15 +63,18 @@ class ClientThread (threading.Thread):
                     if not text:
                         break
                     found = True
-                    info = extractInfo(text)
-                    if info != '':
+                    game, info = extractInfo(text)
+                    if game != '':
                         serverLine += info
                         break
                     else:
                         found = False
                         break
                 if found:
-                    serverList.append(serverLine)
+                    if game == 'dota':
+                        serverListDotA.append(serverLine)
+                    elif game == 'cs':
+                        serverListCS.append(serverLine)
                 sock.shutdown(socket.SHUT_RDWR)
                 sock.close()
 
@@ -77,13 +83,14 @@ class ClientThread (threading.Thread):
 subnetList = ["172.17.0.0/16"]
 
 ipPool = Queue.Queue(0)
-global serverList
-serverList = []
+global serverListDotA, serverListCS
+serverListDotA = []; serverListCS = []
 fileName = "cs.txt"
 
 def checkIPs():
-    global serverList
-    serverList = ["","CS Servers List: (Auto updated every minute)",""]
+    global serverListCS, serverListDotA
+    serverListDotA = []
+    serverListCS = []
     for subnet in subnetList:
         for ip in IPNetwork(subnet).iter_hosts():
             ipPool.put('%s' % ip)
@@ -94,11 +101,16 @@ def checkIPs():
 
 while True:
     checkIPs()
+    serverList = []
+    serverList += ["","CS Servers List: (Auto updated every minute)",""]
+    serverList += serverListCS
+    serverList += ["","DotA Servers List: (Auto updated every minute)",""]
+    serverList += serverListDotA
     serverList.append("")
     serverList.append("Last updated at: "+time.strftime('%I:%M %p, %b %d, %Y'))
     serverList.append("Anyone interested in the code can look here: https://github.com/srijan/cscheck or https://github.com/vaibhav-y/cscheck")
     serverList.append("Fork this project: https://github.com/srijan/cscheck/fork")
-    serverList.append("Contributors: https://github.com/srijan/cscheck/graphs/contributors")
+    serverList.append("Contributors: https://github.com/srijan/cscheck/graphs/contributors") 
     print time.strftime('%I:%M %p, %b %d, %Y'), '-- MARK --'
     f = open(fileName, "w")
     for s in serverList:
